@@ -1,0 +1,15 @@
+version: '3.5'
+
+services:
+  kerbaldeepengine:
+    build:
+      context: ./
+      dockerfile: Dockerfile
+    image: mdbox/kerbal:latest
+    environment:
+      DISPLAY: ":0"
+    volumes:
+      - /tmp/.X11-unix:/tmp/.X11-unix:ro
+      - ./:/root/project
+    ports:
+      - "8888:8888"

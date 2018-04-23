@@ -78,9 +78,36 @@ namespace MDBox.KerbalDeepEngine
         private void flightUpdate(FlightCtrlState st){
             //st.CopyFrom(flightCtrl);
         }
-        
-        static void Main(string[] args){
-            
+    }
+
+    [Serializable]
+    public class DeepEngineMessage : ISerializable
+    {
+        public static final int FLIGHTCTRL   = 0;
+        public static final int STAGING      = 1;
+        public static final int RESETGAME    = 2;
+        public static final int LOADGAME     = 3;
+
+        public Vessel vessel;
+        public FlightCtrlState flightCtrlState;
+        public int action;
+        public string gamename;
+
+        public void GetObjectData(SerializationInfo info, StreamingContext context)
+        {
+            info.AddValue("vessel", vessel, typeof(Vessel));
+            info.AddValue("flightCtrlState", flightCtrlState, typeof(FlightCtrlState));
+            info.AddValue("action", action, typeof(int));
+            info.AddValue("gamename", gamename, typeof(string));
+
+        }
+
+        public DeepEngineMessage(SerializationInfo info, StreamingContext context)
+        {
+            vessel = (Vessel) info.GetValue("vessel", typeof(Vessel));
+            flightCtrlState = (FlightCtrlState) info.GetValue("flightCtrlState", typeof(FlightCtrlState));
+            action = (int) info.GetValue("action", typeof(int));
+            gamename = (string) info.GetValue("gamename", typeof(string));
         }
     }
 }

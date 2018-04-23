@@ -8,12 +8,12 @@ namespace MDBox.KerbalDeepEngine{
 
     class EngineIOPipe{
 
-        static EngineIOPipe defaultEngineIOPipe;
-        static string fifoout = "/tmp/gamepipe.out";
-        static string fifoin = "/tmp/gamepipe.in";
+        private static EngineIOPipe defaultEngineIOPipe;
+        private static string fifoout = "/tmp/gamepipe.out";
+        private static string fifoin = "/tmp/gamepipe.in";
 
-        ConcurrentQueue<string> inMessageQueue;
-        ConcurrentQueue<string> outMessageQueue;
+        private ConcurrentQueue<string> inMessageQueue;
+        private ConcurrentQueue<string> outMessageQueue;
 
         public static EngineIOPipe getDefaultEngineIOPipe(){
             if(defaultEngineIOPipe == null){
@@ -69,9 +69,9 @@ namespace MDBox.KerbalDeepEngine{
                 return null;
             }
         }
-        
+
         static void Main(string[] args){
-            new EngineIOPipe();
+            EngineIOPipe.getDefaultEngineIOPipe();
         }
     }
 }

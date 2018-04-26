@@ -17,149 +17,113 @@ namespace MDBox
 {    
     [KSPAddon(KSPAddon.Startup.MainMenu, false)]
     public class GameLoader: MonoBehaviour{
-    
 
-    
-        void Start(){
+
+        void Start()
+        {
             Debug.Log("Kerbal DeepEngine Enabled");
-            Game game = GamePersistence.LoadGame("testergame", "default/", true, false);
-            if(game == null){
-                Debug.Log("DeepEngine Game is Null");
-            }else{
-               Debug.Log("DeepEngine Game is loaded");
-               game.startScene = GameScenes.;
-
-               //game.Load();
-               //HighLogic.LoadScene(GameScenes.FLIGHT);
-               game.Start();
-            }
+            StartCoroutine(LoadFlightScene());
         }
 
-        void Update(){
+        IEnumerator LoadFlightScene()
+        {
+            yield return new WaitForSeconds(1);
+            Game game = GamePersistence.LoadGame("testergame", "default/", true, false);
+            HighLogic.CurrentGame = game;
+            HighLogic.LoadScene(GameScenes.FLIGHT);
+            game.Start();
         }
     }
     
     [KSPAddon(KSPAddon.Startup.Flight, false)]
-    public class RemoteController : MonoBehaviour
+    public class FlightController : MonoBehaviour
     {
 
-        private static FlightCtrlState flightCtrl = new FlightCtrlState();
+        private FlightCtrlState flightCtrl;
 
-        private DeepEngineIO networkPipe = DeepEngineIO.getDefaultDeepEngineIO();
+        private DeepEngineIO networkPipe;
 
-        void Start(){
+        void Start()
+        {
             Debug.Log("Kerbal DeepEngine Flight Loaded");
+            flightCtrl = new FlightCtrlState();
+            networkPipe = DeepEngineIO.getDefaultDeepEngineIO();
 
-
+            Vessel vessel = FlightGlobals.ActiveVessel;
+            vessel.OnFlyByWire = new FlightInputCallback(flightUpdate);
         }
+
 
         void Update()
         {
-            Vessel vessel = FlightGlobals.ActiveVessel;
             DeepEngineMessage message = new DeepEngineMessage();
-            message.vessel = vessel;
+            message.vessel = FlightGlobals.ActiveVessel;
             message.flightCtrlState = flightCtrl;
-            //networkPipe.writeToOutPipe(JsonUtility.ToJson(message));
-            //Debug.Log(JsonUtility.ToJson(vessel));
-            //string netmessage = networkPipe.readFromInPipe();
-            //if(netmessage != null){
-            //    print(netmessage);
-            //}
-            
-            //if(firstAction){
-            //    Invoke("onDeath", 30);
-            //}
-            
-            //if(vessel.altitude < 5){
-            //    onDeath();
-            //}else if(input.Count > 0){
-            //    ActionJSON a = JsonUtility.FromJson<ActionJSON>((string)input.Dequeue());
-            //    updateFlightCtrl(a.action);
-            //    Invoke("updateNetwork", (float)a.delayms/1000);  
-            //}
-        }
-        
-        private void onDeath(){
-        }
-        
-        private void onCrash(EventReport report){
-        }
-        
-        private void flightReady(){
-            //firstAction = true;
-            //KSP.UI.Screens.StageManager.ActivateNextStage();
-        }
-        
-        private void reset(){
-            //CancelInvoke();
-            //FlightDriver.RevertToLaunch();
-            //Game game = GamePersistence.LoadGame("train1", "default/", true, false);
-            //game.startScene = GameScenes.MAINMENU;
-            //game.Start();            
-            
-            //flightCtrl = new FlightCtrlState();
-            //Vessel vessel = FlightGlobals.ActiveVessel;
-            //vessel.OnFlyByWire = new FlightInputCallback(flightUpdate);
-            //InvokeRepeating("updateNetwork", 0, 1.0f);            
-        }
-        
-        private void flightUpdate(FlightCtrlState st){
-            //st.CopyFrom(flightCtrl);
+            networkPipe.writeToOutPipe(JsonUtility.ToJson(message));
+
+            string netmessage = networkPipe.readFromInPipe();
+            if(netmessage != null){
+               DeepEngineMessage inputmessage = JsonUtility.FromJson<DeepEngineMessage>(netmessage);
+
+               if(inputmessage.action == DeepEngineMessage.FLIGHTCTRL)
+               {
+                   flightCtrl = JsonUtility.FromJson<FlightCtrlState>(inputmessage.flightCtrlState);
+               }
+               if(inputmessage.action == DeepEngineMessage.STAGING)
+               {
+                   KSP.UI.Screens.StageManager.ActivateNextStage();
+               }
+               if(inputmessage.action == DeepEngineMessage.RESETGAME)
+               {
+                   FlightDriver.RevertToLaunch();
+               }
+            }
         }
 
+        private void flightUpdate(FlightCtrlState flightCtrlState)
+        {
+            flightCtrlState.CopyFrom(flightCtrl);
+        }
     }
 
-    [Serializable]
-    public class DeepEngineMessage : ISerializable
+    [System.Serializable]
+    public class DeepEngineMessage : System.Object
     {
         public static readonly int FLIGHTCTRL   = 0;
         public static readonly int STAGING      = 1;
         public static readonly int RESETGAME    = 2;
         public static readonly int LOADGAME     = 3;
 
+
         public Vessel vessel;
         public FlightCtrlState flightCtrlState;
-        public int action;
+        public int action = 0; /* Set Default Action To Flight Control */
         public string gamename;
-
-        public DeepEngineMessage(){
-        }
-
-        public void GetObjectData(SerializationInfo info, StreamingContext context)
-        {
-            info.AddValue("vessel", vessel, typeof(Vessel));
-            info.AddValue("flightCtrlState", flightCtrlState, typeof(FlightCtrlState));
-            info.AddValue("action", action, typeof(int));
-            info.AddValue("gamename", gamename, typeof(string));
-        }
-
-        public DeepEngineMessage(SerializationInfo info, StreamingContext context)
-        {
-            vessel = (Vessel) info.GetValue("vessel", typeof(Vessel));
-            flightCtrlState = (FlightCtrlState) info.GetValue("flightCtrlState", typeof(FlightCtrlState));
-            action = (int) info.GetValue("action", typeof(int));
-            gamename = (string) info.GetValue("gamename", typeof(string));
-        }
     }
+
+
 
     public class DeepEngineIO{
         private static DeepEngineIO defaultDeepEngineIO;
         private static readonly string fifoout = "/tmp/gamepipe.out";
         private static readonly string fifoin  = "/tmp/gamepipe.in";
 
-        private Queue<string> inMessageQueue;
-        private Queue<string> outMessageQueue;
+        private Queue inMessageQueue;
+        private Queue outMessageQueue;
 
-        public static DeepEngineIO getDefaultDeepEngineIO(){
-            if(defaultDeepEngineIO == null){
+        public static DeepEngineIO getDefaultDeepEngineIO()
+        {
+            if(defaultDeepEngineIO == null)
+            {
                 defaultDeepEngineIO = new DeepEngineIO();
             }
             return defaultDeepEngineIO;
         }
 
-        private DeepEngineIO(){
-            inMessageQueue  = new Queue<string>();
-            outMessageQueue = new Queue<string>();
+        private DeepEngineIO()
+        {
+            inMessageQueue  = Queue.Synchronized(new Queue());
+            outMessageQueue = Queue.Synchronized(new Queue());
 
 
             Thread inThread = new Thread(startInPipe);
@@ -170,36 +134,45 @@ namespace MDBox
         }
 
 
-        private void startOutPipe(){
-            FileStream outfile = new FileInfo(fifoout).OpenWrite();
-            StreamWriter writer  = new StreamWriter(outfile, Encoding.UTF8);
-
-            while(true){
-                if(outMessageQueue.Count > 0){
-                    writer.Write(outMessageQueue.Dequeue());
+        private void startOutPipe()
+        {
+            while(true)
+            {
+                if(outMessageQueue.Count > 0)
+                {
+                    FileStream outfile = new FileInfo(fifoout).OpenWrite();
+                    StreamWriter writer  = new StreamWriter(outfile, Encoding.UTF8);
+                    writer.WriteLine((string)outMessageQueue.Dequeue());
                     writer.Flush();
+                    writer.Close();
                 }
             }
         }
 
-        private void startInPipe(){
+        private void startInPipe()
+        {
             FileStream infile = new FileInfo(fifoin).OpenRead();
             StreamReader reader = new StreamReader(infile, Encoding.UTF8);
 
-            while(true){
+            while(true)
+            {
                 string message = reader.ReadLine();
                 inMessageQueue.Enqueue(message);
             }
         }
 
-        public void writeToOutPipe(string message){
+        public void writeToOutPipe(string message)
+        {
             outMessageQueue.Enqueue(message);
         }
 
-        public string readFromInPipe(){
-            if(inMessageQueue.Count > 0){
-                return inMessageQueue.Dequeue();
-            }else{
+        public string readFromInPipe()
+        {
+            if(inMessageQueue.Count > 0)
+            {
+                return (string)inMessageQueue.Dequeue();
+            }else
+            {
                 return null;
             }
         }

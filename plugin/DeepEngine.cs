@@ -38,33 +38,45 @@ namespace MDBox
     [KSPAddon(KSPAddon.Startup.Flight, false)]
     public class FlightController : MonoBehaviour
     {
+        private static readonly string fifoout = "/tmp/gamepipe.out";
+        private static readonly string fifoin  = "/tmp/gamepipe.in";
+
 
         private FlightCtrlState flightCtrl;
 
-        private DeepEngineIO networkPipe;
+        //private DeepEngineIO networkPipe;
 
         void Start()
         {
             Debug.Log("Kerbal DeepEngine Flight Loaded");
             flightCtrl = new FlightCtrlState();
-            networkPipe = DeepEngineIO.getDefaultDeepEngineIO();
+            //networkPipe = DeepEngineIO.getDefaultDeepEngineIO();
 
             Vessel vessel = FlightGlobals.ActiveVessel;
             vessel.OnFlyByWire = new FlightInputCallback(flightUpdate);
         }
 
-
-        void Update()
+        IEnumerator TransmitGameState()
         {
+            yield return new WaitForFixedUpdate();
             DeepEngineMessage message = new DeepEngineMessage();
-            message.vessel = FlightGlobals.ActiveVessel;
-            message.flightCtrlState = flightCtrl;
-            networkPipe.writeToOutPipe(JsonUtility.ToJson(message));
+            message.vessel = JsonUtility.ToJson(FlightGlobals.ActiveVessel);
+            message.flightCtrlState = JsonUtility.ToJson(flightCtrl);
+            FileStream outfile = new FileInfo(fifoout).OpenWrite();
+            StreamWriter writer  = new StreamWriter(outfile, Encoding.UTF8);
+            writer.WriteLine(JsonUtility.ToJson(message));
+            writer.Flush();
+            writer.Close();
+        }
 
-            string netmessage = networkPipe.readFromInPipe();
-            if(netmessage != null){
-               DeepEngineMessage inputmessage = JsonUtility.FromJson<DeepEngineMessage>(netmessage);
-
+        IEnumerator ReceiveGameState()
+        {
+            yield return new WaitForEndOfFrame();
+            FileStream infile = new FileInfo(fifoin).OpenRead();
+            StreamReader reader = new StreamReader(infile, Encoding.UTF8);
+            string message = reader.ReadLine();
+            if(message != null){
+               DeepEngineMessage inputmessage = JsonUtility.FromJson<DeepEngineMessage>(message);
                if(inputmessage.action == DeepEngineMessage.FLIGHTCTRL)
                {
                    flightCtrl = JsonUtility.FromJson<FlightCtrlState>(inputmessage.flightCtrlState);
@@ -78,6 +90,19 @@ namespace MDBox
                    FlightDriver.RevertToLaunch();
                }
             }
+
+        }
+
+        void FixedUpdate()
+        {
+                    StartCoroutine(TransmitGameState());
+        }
+
+
+        void Update()
+        {
+
+            //StartCoroutine(ReceiveGameState());
         }
 
         private void flightUpdate(FlightCtrlState flightCtrlState)
@@ -95,10 +120,11 @@ namespace MDBox
         public static readonly int LOADGAME     = 3;
 
 
-        public Vessel vessel;
-        public FlightCtrlState flightCtrlState;
+        public string vessel;
+        public string flightCtrlState;
         public int action = 0; /* Set Default Action To Flight Control */
         public string gamename;
+        public long milliseconds = DateTime.Now.Ticks / TimeSpan.TicksPerMillisecond;
     }
 
 

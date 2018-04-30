@@ -6,8 +6,6 @@ import select
 import threading
 from threading import Thread
 
-
-
 KSPHOME = '../kerbal/KSP_linux'
 GAMEOUT = '/tmp/gamepipe.out'
 GAMEIN = '/tmp/gamepipe.in'
@@ -20,11 +18,10 @@ class ItemStore(object):
     def add(self, item):
         with self.cond:
             self.items.append(item)
-            self.cond.notify() # Wake 1 thread waiting on cond (if any)
+            self.cond.notify()
 
     def getAll(self, blocking=False):
         with self.cond:
-            # If blocking is true, always return at least 1 item
             while blocking and len(self.items) == 0:
                 self.cond.wait()
             items, self.items = self.items, []
@@ -39,6 +36,9 @@ class KSPDeepEngine:
         if not os.path.exists(GAMEOUT):
             os.mkfifo(GAMEOUT, 0o777)
 
+    def start(self):
+
+
 class FifoReadPipeThread(Thread):
     def __init__(self):
         Thread.__init__(self)
@@ -46,7 +46,7 @@ class FifoReadPipeThread(Thread):
     def run(self):
         global game
         if not os.path.exists(GAMEOUT):
-            os.mkfifo(self.path, 0o777)
+            os.mkfifo(GAMEOUT, 0o777)
 
         while True:
             with open(GAMEOUT, 'r', encoding='utf-8-sig') as fifo:
@@ -60,7 +60,7 @@ class FifoOutPipeThread(Thread):
 
     def run(self):
         if not os.path.exists(GAMEIN):
-            os.mkfifo(self.path, 0o777)
+            os.mkfifo(GAMEIN, 0o777)
 
         while True:
             with open(GAMEIN, 'w', encoding='utf-8-sig') as fifo:
@@ -78,9 +78,3 @@ t.start()
 t = FifoOutPipeThread()
 t.daemon = False
 t.start()
-
-
-
-
-
-

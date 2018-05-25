@@ -62,8 +62,6 @@ namespace MDBox
             using (StreamWriter writer  = new StreamWriter(outfile, Encoding.UTF8))
             {
               writer.WriteLine(JsonUtility.ToJson(message));
-              //writer.Flush();
-              //writer.Close();
             }
         }
 

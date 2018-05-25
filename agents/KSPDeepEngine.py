@@ -2,7 +2,6 @@ from __future__ import print_function
 import json
 import os
 import subprocess
-import select
 import threading
 from threading import Thread
 
@@ -36,27 +35,39 @@ class KSPDeepEngine:
         if not os.path.exists(GAMEOUT):
             os.mkfifo(GAMEOUT, 0o777)
 
-    def start(self):
+        thread1 = FifoReadPipeThread(self)
+        thread1.start()
+
+        thread2 = FifoOutPipeThread(self)
+        thread2.start()
+
+        with subprocess.Popen(["/home/michael/dev/ksp-deepengine/kerbal/KSP_linux/KSP.x86_64"], stdout=None) as proc:
+            print(proc.stdout.read())
+
 
 
 class FifoReadPipeThread(Thread):
-    def __init__(self):
+    def __init__(self, game):
         Thread.__init__(self)
+        self.daemon = False
+        self.game = game
 
     def run(self):
-        global game
         if not os.path.exists(GAMEOUT):
             os.mkfifo(GAMEOUT, 0o777)
 
         while True:
             with open(GAMEOUT, 'r', encoding='utf-8-sig') as fifo:
                 line = fifo.read()
-                game.inmessage.add(line)
+                print('MESSAGE IN: ', line)
+                self.game.inmessage.add(line)
 
 
 class FifoOutPipeThread(Thread):
-    def __init__(self):
+    def __init__(self, game):
         Thread.__init__(self)
+        self.daemon = False
+        self.game = game
 
     def run(self):
         if not os.path.exists(GAMEIN):
@@ -64,17 +75,12 @@ class FifoOutPipeThread(Thread):
 
         while True:
             with open(GAMEIN, 'w', encoding='utf-8-sig') as fifo:
-                message = game.outmessage.getAll()
+                message = self.game.outmessage.getAll()
                 if len(message) > 0:
+                    print('MESSAGE OUT: ', message)
                     fifo.write(message[0])
                     fifo.flush()
 
 
 game = KSPDeepEngine()
-t = FifoReadPipeThread()
-t.daemon = False
-t.start()
 
-t = FifoOutPipeThread()
-t.daemon = False
-t.start()

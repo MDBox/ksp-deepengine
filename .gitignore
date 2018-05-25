@@ -3,3 +3,6 @@
 kerbal
 *.exe
 *.dll
+.vent
+KSP.log
+PartDatabase.cfg

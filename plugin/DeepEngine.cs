@@ -30,7 +30,9 @@ namespace MDBox
             yield return new WaitForSeconds(1);
             Game game = GamePersistence.LoadGame("testergame", "default/", true, false);
             HighLogic.CurrentGame = game;
-            HighLogic.LoadScene(GameScenes.FLIGHT);
+            //HighLogic.LoadScene(GameScenes.FLIGHT);
+            game.startScene = GameScenes.FLIGHT;
+
             game.Start();
         }
     }
@@ -75,6 +77,7 @@ namespace MDBox
               {
                 string message = reader.ReadLine();
                 if(message != null){
+                   Debug.Log("DeepEngine: " + message);
                    DeepEngineMessage inputmessage = JsonUtility.FromJson<DeepEngineMessage>(message);
                    if(inputmessage.action == DeepEngineMessage.FLIGHTCTRL)
                    {

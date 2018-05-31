@@ -5,7 +5,7 @@ import subprocess
 import threading
 from threading import Thread
 
-KSPHOME = '../kerbal/KSP_linux'
+KSPHOME = '/home/michael/dev/ksp-deepengine/kerbal/KSP_linux'
 GAMEOUT = '/tmp/gamepipe.out'
 GAMEIN = '/tmp/gamepipe.in'
 
@@ -41,9 +41,17 @@ class KSPDeepEngine:
         thread2 = FifoOutPipeThread(self)
         thread2.start()
 
-        with subprocess.Popen(["/home/michael/dev/ksp-deepengine/kerbal/KSP_linux/KSP.x86_64"], stdout=None) as proc:
-            print(proc.stdout.read())
+        subprocess.Popen([KSPHOME+"/KSP.x86_64"], stdout=None)
 
+    def getLastState(self):
+        return self.inmessage.getAll(blocking=True)[-1]
+
+    def getAllQueuedStates(self):
+        return self.inmessage.getAll()
+
+    def sendAcation(self, action):
+        #print(action)
+        self.outmessage.add(action)
 
 
 class FifoReadPipeThread(Thread):
@@ -58,9 +66,16 @@ class FifoReadPipeThread(Thread):
 
         while True:
             with open(GAMEOUT, 'r', encoding='utf-8-sig') as fifo:
-                line = fifo.read()
-                print('MESSAGE IN: ', line)
-                self.game.inmessage.add(line)
+                try:
+                    line = fifo.read()
+                    state = json.loads(line)
+                    state['vessel'] = json.loads(state['vessel'])
+                    #state['flightCtrlState'] = json.loads(state['flightCtrlState'])
+                    self.game.inmessage.add(state)
+                except Exception as e:
+                    pass
+                    #print(str(e))
+
 
 
 class FifoOutPipeThread(Thread):
@@ -72,15 +87,16 @@ class FifoOutPipeThread(Thread):
     def run(self):
         if not os.path.exists(GAMEIN):
             os.mkfifo(GAMEIN, 0o777)
-
+            
+        
         while True:
             with open(GAMEIN, 'w', encoding='utf-8-sig') as fifo:
-                message = self.game.outmessage.getAll()
+
+                message = self.game.outmessage.getAll(blocking=False)
                 if len(message) > 0:
-                    print('MESSAGE OUT: ', message)
-                    fifo.write(message[0])
-                    fifo.flush()
+                    print('MESSAGE OUT: ', message[-1])
+                    fifo.write(message[-1]+'\n')
+                    
 
-
-game = KSPDeepEngine()
-
+if __name__ == '__main__':
+    game = KSPDeepEngine()

@@ -43,6 +43,10 @@ namespace MDBox
         private static readonly string fifoout = "/tmp/gamepipe.out";
         private static readonly string fifoin  = "/tmp/gamepipe.in";
 
+        private Thread r_thread;
+        private System.Object locking = new System.Object();
+        private bool listening = false;
+        private DeepEngineMessage inputmessage;
         private FlightCtrlState flightCtrl;
 
         void Start()
@@ -54,57 +58,75 @@ namespace MDBox
             vessel.OnFlyByWire = new FlightInputCallback(flightUpdate);
         }
 
-        IEnumerator TransmitGameState()
-        {
-            yield return new WaitForFixedUpdate();
-            DeepEngineMessage message = new DeepEngineMessage();
-            message.vessel = JsonUtility.ToJson(FlightGlobals.ActiveVessel);
-            message.flightCtrlState = JsonUtility.ToJson(flightCtrl);
-            FileStream outfile = new FileInfo(fifoout).OpenWrite();
-            using (StreamWriter writer  = new StreamWriter(outfile, Encoding.UTF8))
-            {
-              writer.WriteLine(JsonUtility.ToJson(message));
-            }
-        }
-
-        IEnumerator ReceiveGameState()
-        {
-            yield return new WaitForEndOfFrame();
+        void GameStateListener(){
+          try{
             FileStream infile = new FileInfo(fifoin).OpenRead();
             using (StreamReader reader = new StreamReader(infile, Encoding.UTF8))
             {
-              if(reader.Peek() > -1)
-              {
-                string message = reader.ReadLine();
-                if(message != null){
-                   Debug.Log("DeepEngine: " + message);
-                   DeepEngineMessage inputmessage = JsonUtility.FromJson<DeepEngineMessage>(message);
-                   if(inputmessage.action == DeepEngineMessage.FLIGHTCTRL)
-                   {
-                       flightCtrl = JsonUtility.FromJson<FlightCtrlState>(inputmessage.flightCtrlState);
+              string inmessage = reader.ReadLine();
+              //Debug.Log("MESSAGE: " + inmessage);
+              if(inmessage != null){
+                 Debug.Log("DeepEngine: " + inmessage);
+                 lock(locking){
+                   try{
+                     inputmessage = JsonUtility.FromJson<DeepEngineMessage>(inmessage);
+                   }catch(Exception e){
+                     Debug.Log(e.Source);
                    }
-                   if(inputmessage.action == DeepEngineMessage.STAGING)
-                   {
-                       KSP.UI.Screens.StageManager.ActivateNextStage();
-                   }
-                   if(inputmessage.action == DeepEngineMessage.RESETGAME)
-                   {
-                       FlightDriver.RevertToLaunch();
-                   }
-                }
+                 }
               }
+            }
+          } finally{
+            listening = false;
+          }
+        }
+
+        IEnumerator TransmitGameState()
+        {
+            yield return new WaitForEndOfFrame();
+
+            try{
+              DeepEngineMessage message = new DeepEngineMessage();
+              message.vessel = JsonUtility.ToJson(FlightGlobals.ActiveVessel);
+              message.flightCtrlState = JsonUtility.ToJson(flightCtrl);
+              FileStream outfile = new FileInfo(fifoout).OpenWrite();
+              using (StreamWriter writer  = new StreamWriter(outfile, Encoding.UTF8))
+              {
+                writer.WriteLine(JsonUtility.ToJson(message));
+              }
+            }catch(Exception e){
+              Debug.Log(e.Source);
             }
         }
 
-        void FixedUpdate()
-        {
-          StartCoroutine(TransmitGameState());
-        }
-
-
         void Update()
         {
-          StartCoroutine(ReceiveGameState());
+          StartCoroutine(TransmitGameState());
+          lock(locking){
+            if(inputmessage != null){
+              //Debug.Log("DeepEngine: " + inputmessage.flightCtrlState);
+              if(inputmessage.action == DeepEngineMessage.FLIGHTCTRL)
+              {
+                  flightCtrl = JsonUtility.FromJson<FlightCtrlState>(inputmessage.flightCtrlState);
+              }
+              if(inputmessage.action == DeepEngineMessage.STAGING)
+              {
+                  KSP.UI.Screens.StageManager.ActivateNextStage();
+              }
+              if(inputmessage.action == DeepEngineMessage.RESETGAME)
+              {
+                  inputmessage = null;
+                  FlightDriver.RevertToLaunch();
+              }
+              inputmessage = null;
+            }
+          }
+          if(!listening){
+            listening = true;
+            Debug.Log("Start listening");
+            r_thread = new Thread(GameStateListener);
+            r_thread.Start();
+          }
         }
 
         private void flightUpdate(FlightCtrlState flightCtrlState)
@@ -114,7 +136,7 @@ namespace MDBox
     }
 
     [System.Serializable]
-    public class DeepEngineMessage : System.Object
+    public class DeepEngineMessage
     {
         public static readonly int FLIGHTCTRL   = 0;
         public static readonly int STAGING      = 1;

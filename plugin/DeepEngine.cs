@@ -3,6 +3,7 @@ using System.Collections;
 using System.Text;
 using System.Threading;
 using System.IO;
+using KSP.UI.Screens.DebugToolbar.Screens.Cheats;
 using UnityEngine;
 
 namespace DeepSpaceEngine
@@ -40,6 +41,7 @@ namespace DeepSpaceEngine
         private System.Object locking = new System.Object();
         private DeepEngineMessage inputmessage = null;
         private bool listening = false;
+        private bool crashed = false;
         private FlightCtrlState flightCtrl;
         
         void Start()
@@ -49,11 +51,18 @@ namespace DeepSpaceEngine
 
             Vessel vessel = FlightGlobals.ActiveVessel;
             vessel.OnFlyByWire = new FlightInputCallback(flightUpdate);
+            vessel.OnJustAboutToBeDestroyed = new Callback(OnCrash);
         }
         
         private void flightUpdate(FlightCtrlState flightCtrlState)
         {
             flightCtrlState.CopyFrom(flightCtrl);
+        }
+
+        private void OnCrash()
+        {
+            Debug.Log("Crash Detected");
+            crashed = true;
         }
         
         void GameStateListener(){
@@ -100,6 +109,10 @@ namespace DeepSpaceEngine
                 DeepEngineMessage message = new DeepEngineMessage();
                 message.vessel = JsonUtility.ToJson(FlightGlobals.ActiveVessel);
                 message.flightCtrlState = JsonUtility.ToJson(flightCtrl);
+                if (crashed)
+                {
+                    message.action = DeepEngineMessage.CRASHED;
+                }
 
                 FileStream outfile = new FileInfo(fifoout).OpenWrite();
                 using (StreamWriter writer = new StreamWriter(outfile, Encoding.UTF8))
@@ -113,7 +126,8 @@ namespace DeepSpaceEngine
             }
             finally
             {
-                Debug.Log("Transmit finished");    
+                Debug.Log("Transmit finished");
+                inputmessage = null;
             }
         }
         
@@ -132,13 +146,13 @@ namespace DeepSpaceEngine
                     if(inputmessage.action == DeepEngineMessage.RESETGAME)
                     {
                         read_thread.Abort();
+                        crashed = false;
                         FlightDriver.RevertToLaunch();
                     }
-                    inputmessage = null;
                     StartCoroutine(TransmitGameState());
                 }
             }
-            if(!listening){
+            if(!listening && inputmessage == null){
                 StartGameListener();
             }
         }
@@ -151,7 +165,7 @@ namespace DeepSpaceEngine
         public static readonly int FLIGHTCTRL   = 0;
         public static readonly int STAGING      = 1;
         public static readonly int RESETGAME    = 2;
-        public static readonly int LOADGAME     = 3;
+        public static readonly int CRASHED      = 3;
 
         public string vessel;
         public string flightCtrlState;

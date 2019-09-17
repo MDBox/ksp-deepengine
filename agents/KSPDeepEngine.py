@@ -3,6 +3,8 @@ from json import JSONEncoder
 import numpy as np
 import json
 import os
+import time
+
 
 GAMEOUT = '/home/michael/projects/ksp-deepengine/gamepipe.out'
 GAMEIN = '/home/michael/projects/ksp-deepengine/gamepipe.in'
@@ -62,7 +64,7 @@ INPUTFILTER['terrainAltitude'] = 'float'
 INPUTFILTER['pqsAltitude'] = 'float'
 INPUTFILTER['localCoM'] = 'vector'
 
-class KSPAction:
+class KSPAction(object):        
     def __init__(self):
         self.action = 0;
         self.flightCtrlState = FlightCtrl()
@@ -72,10 +74,20 @@ class KSPAction:
         obj['action'] = self.action
         obj['flightCtrlState'] = self.flightCtrlState.toJSON()
         return json.dumps(obj)
+    
+    def toArray(self):
+        obj = []
+        obj.append(self.action)
+        obj.append(self.flightCtrlState.mainThrottle)
+        obj.append(self.flightCtrlState.roll)
+        obj.append(self.flightCtrlState.yaw)
+        obj.append(self.flightCtrlState.pitch)
+        return obj
+        
 
-class FlightCtrl:
-    def __init__(self):
-        self.mainThrottle = 1.0
+class FlightCtrl(object):
+    def __init__(self, **entries):
+        self.mainThrottle = 0.0
         self.roll = 0.0
         self.yaw = 0.0
         self.pitch = 0.0
@@ -87,19 +99,22 @@ class FlightCtrl:
         self.wheelThrottle = 0.0
         self.gearDown = True
         self.headlight = False
-    
+        self.__dict__.update(entries)
+        
     def toJSON(self):
         return json.dumps(self, default=lambda o: o.__dict__, 
             sort_keys=True, indent=4)
-    
-        
-            
+                
 class KSPDeepEngine:
     def __init__(self):
         if not os.path.exists(GAMEIN):
             os.mkfifo(GAMEIN, 0o777)
         if not os.path.exists(GAMEOUT):
             os.mkfifo(GAMEOUT, 0o777)
+        
+        self.start = time.time()
+        self.lastAltitude = 0
+
             
     def parseVector3(self, vector3):
         return [vector3['x'], vector3['y'], vector3['z']]
@@ -109,11 +124,11 @@ class KSPDeepEngine:
         for k in vessel:
             if k in INPUTFILTER:
                 if INPUTFILTER[k] == 'int':
-                    values.append(vessel[k])
+                    values.append([vessel[k],vessel[k],vessel[k]])
                 if INPUTFILTER[k] == 'float':
-                    values.append(vessel[k])
+                    values.append([vessel[k],vessel[k],vessel[k]])
                 if INPUTFILTER[k] == 'vector':
-                    values.extend(self.parseVector3(vessel[k]))            
+                    values.extend([self.parseVector3(vessel[k])])            
         return values
     
     def parseFlightControls(self, flightControl):
@@ -129,11 +144,14 @@ class KSPDeepEngine:
     def new_episode(self):
         action = KSPAction()
         action.action = 2
-        self.getEnvironmentState(action)
+        self.get_state(action)
+        time.sleep(15)
+        self.start = time.time()
     
     def get_state(self, action = None):
-#         if not action:
-#             action = KSPAction()
+        if not action:
+            action = KSPAction()
+        done = False
         
         with open(GAMEIN, 'w', encoding='utf-8-sig') as w:
             w.write(action.toJSON()+'\n')
@@ -143,24 +161,42 @@ class KSPDeepEngine:
         with open(GAMEOUT, 'r', encoding='utf-8-sig') as fifo:
             line = fifo.read()
         
-        state = json.loads(line)
-        vessel = json.loads(state['vessel'])
-        fc = json.loads(state['flightCtrlState'])
-        state['environment'] = self.parseVessel(vessel)
-        state['environment'].extend(self.parseFlightControls(fc))
-        state['state'] = vessel['state']
+        message = json.loads(line)
+        vessel = json.loads(message['vessel'])
+        flightCtrlState = json.loads(message['flightCtrlState'])
+        state = self.parseVessel(vessel)
+        state.extend(self.parseFlightControls(flightCtrlState))
+        
+        reward = int(vessel['altitude'])
+        if message['action'] == 3: # Action 3 means ship crashed
+            reward -= 100000
+            done = True
+            
+        if vessel['situation'] == 5: # situation 5 means we reach a stable orbet
+            reward += 100000
+            done = True
+        
+        if int(vessel['altitude']) != self.lastAltitude:
+            self.start = time.time()
+        
+        self.lastAltitude = int(vessel['altitude'])
+        
+        currentTime = time.time()
+        if (currentTime - self.start) > 20:
+            reward -= 100000
+            done = True
                  
-        return np.array(state['environment'], dtype='f'), vessel['state'], fc
+        return np.array(state, dtype='f'), reward, done, vessel, FlightCtrl(**flightCtrlState)
 
 
 if __name__ == '__main__':
     game = KSPDeepEngine()
     
     action = KSPAction()
-    action.action = 1
+    action.action = 2
     
-    array, state, fc = game.get_state(action)
+    print(game.get_state(action))
     
-    print(array.shape, state, fc)
+    
 
     

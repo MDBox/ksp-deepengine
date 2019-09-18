@@ -113,7 +113,7 @@ class KSPDeepEngine:
             os.mkfifo(GAMEOUT, 0o777)
         
         self.start = time.time()
-        self.lastAltitude = 0
+        self.lastAltitude = 89
 
             
     def parseVector3(self, vector3):
@@ -167,23 +167,28 @@ class KSPDeepEngine:
         state = self.parseVessel(vessel)
         state.extend(self.parseFlightControls(flightCtrlState))
         
-        reward = int(vessel['altitude'])
+        reward = 0
+        if int(vessel['altitude']) >= self.lastAltitude:
+            reward = 1
+        else:
+            reward = -1
         if message['action'] == 3: # Action 3 means ship crashed
-            reward -= 100000
+            reward -= 10
             done = True
             
         if vessel['situation'] == 5: # situation 5 means we reach a stable orbet
-            reward += 100000
+            reward += 10000000
             done = True
         
         if int(vessel['altitude']) != self.lastAltitude:
             self.start = time.time()
         
+        
         self.lastAltitude = int(vessel['altitude'])
         
         currentTime = time.time()
         if (currentTime - self.start) > 20:
-            reward -= 100000
+            reward -= 10
             done = True
                  
         return np.array(state, dtype='f'), reward, done, vessel, FlightCtrl(**flightCtrlState)

@@ -168,11 +168,11 @@ class KSPDeepEngine:
         state.extend(self.parseFlightControls(flightCtrlState))
         
         reward = 0
-        if int(vessel['altitude']) >= self.lastAltitude:
+        if int(vessel['altitude']) > self.lastAltitude:
             reward = 1
         else:
             reward = -1
-        if message['action'] == 3: # Action 3 means ship crashed
+        if message['action'] == 3 or int(vessel['altitude']) <= 70: # Action 3 means ship crashed
             reward -= 10
             done = True
             

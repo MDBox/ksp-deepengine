@@ -32,8 +32,7 @@ The DeepEngine plugin is a Unity plugin that takes over control of KSP as soon a
 cp -r ./deep_engine /path/to/ksp/Plugins/
 ```
 
-
-
+![Overview Image](images/overview.png)
 
 ### Setup Jupyter Notebook
 To use the notebooks you should first create a Python3 virtual environment and install the requirements.
@@ -54,3 +53,7 @@ jupyter-lab
 The first challenge is already setup with a basic example. I think it can be improved!
 
 * [First Challenge](https://github.com/MDBox/ksp-deepengine/tree/master/challenges/challenge1/Challenge1.ipynb)
+
+
+# References
+* This was a great help! [Deep Learning Course](https://github.com/simoninithomas/Deep_reinforcement_learning_Course)

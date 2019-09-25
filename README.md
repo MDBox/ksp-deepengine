@@ -17,9 +17,9 @@ This project is broken into several sections.
 ## Getting Started
 The first step is to clone this repo.
 
-'''
+```
 git clone https://github.com/MDBox/ksp-deepengine.git
-'''
+```
 
 ### KSP Plugin - DeepEngine
 The DeepEngine plugin is a Unity plugin that takes over control of KSP as soon as the game is launched. It might be a good idea to have a separate game directory just for this plugin. *You will need to remove the plugin if you wish to play the game normally.*
@@ -28,9 +28,9 @@ The DeepEngine plugin is a Unity plugin that takes over control of KSP as soon a
 
 #### Install Plugin
 
-'''
+```
 cp -r ./deep_engine /path/to/ksp/Plugins/
-'''
+```
 
 
 
@@ -38,17 +38,17 @@ cp -r ./deep_engine /path/to/ksp/Plugins/
 ### Setup Jupyter Notebook
 To use the notebooks you should first create a Python3 virtual environment and install the requirements.
 
-'''
+```
 python3 -m venv env
 source env/bin/activate
 pip3 install -r requirements.txt
-'''
+```
 
 You can now start Jupyter Notebook with this command. It should automatically open your web browser to the notebook server.
 
-'''
+```
 jupyter-lab
-'''
+```
 
 ## Start Challenge 1
 The first challenge is already setup with a basic example. I think it can be improved!

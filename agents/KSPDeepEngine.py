@@ -6,11 +6,13 @@ import os
 import time
 import math
 
+GAMECHALLENGE1 = "../Plugins/deep_engine/challenge1/"
+
 GAMEOUT = '/home/michael/projects/ksp-deepengine/gamepipe.out'
 GAMEIN = '/home/michael/projects/ksp-deepengine/gamepipe.in'
 
 INPUTFILTER = {}
-#INPUTFILTER['currentStage'] = 'int'
+INPUTFILTER['currentStage'] = 'int'
 #INPUTFILTER['srfRelRotation'] = 'vector'
 #INPUTFILTER['longitude'] = 'float'
 #INPUTFILTER['latitude'] = 'float'
@@ -26,7 +28,7 @@ INPUTFILTER = {}
 #INPUTFILTER['srf_velocity'] = 'vector'
 #INPUTFILTER['srf_vel_direction'] = 'vector'
 #INPUTFILTER['rb_velocity'] = 'vector'
-#INPUTFILTER['velocityD'] = 'vector'
+INPUTFILTER['velocityD'] = 'vector'
 #INPUTFILTER['obt_speed'] = 'float'
 #INPUTFILTER['acceleration'] = 'vector'
 #INPUTFILTER['acceleration_immediate'] = 'vector'
@@ -55,9 +57,9 @@ INPUTFILTER['upAxis'] = 'vector'
 #INPUTFILTER['staticPressurekPa'] = 'float'
 #INPUTFILTER['dynamicPressurekPa'] = 'float'
 #INPUTFILTER['atmDensity'] = 'float'
-#INPUTFILTER['up'] = 'vector'
-#INPUTFILTER['north'] = 'vector'
-#INPUTFILTER['east'] = 'vector'
+INPUTFILTER['up'] = 'vector'
+INPUTFILTER['north'] = 'vector'
+INPUTFILTER['east'] = 'vector'
 #INPUTFILTER['totalMass'] = 'float'
 #INPUTFILTER['heightFromTerrain'] = 'float'
 #INPUTFILTER['terrainAltitude'] = 'float'
@@ -68,11 +70,13 @@ class KSPAction(object):
     def __init__(self):
         self.action = 0;
         self.flightCtrlState = FlightCtrl()
+        self.gamepath = GAMECHALLENGE1
         
     def toJSON(self):
         obj = {}
         obj['action'] = self.action
         obj['flightCtrlState'] = self.flightCtrlState.toJSON()
+        obj['gamepath'] = self.gamepath
         return json.dumps(obj)
     
     def toArray(self):
@@ -87,7 +91,7 @@ class KSPAction(object):
 
 class FlightCtrl(object):
     def __init__(self, **entries):
-        self.mainThrottle = 1.0
+        self.mainThrottle = 0.0
         self.roll = 0.0
         self.yaw = 0.0
         self.pitch = 0.0
@@ -116,6 +120,7 @@ class KSPDeepEngine:
         self.step = 0
         self.reward = 0
         self.lastAltitude = 89
+        self.lastCheckAlt = 89
 
             
     def parseVector3(self, vector3):
@@ -139,8 +144,7 @@ class KSPDeepEngine:
                 if INPUTFILTER[k] == 'int':
                     values.append(vessel[k])
                 if INPUTFILTER[k] == 'float':
-                    max_alt = 1600 * 1000
-                    values.append(vessel[k]/max_alt)
+                    values.append(math.atan(vessel[k]))
                 if INPUTFILTER[k] == 'vector':
                     values.extend(self.parseVector3(vessel[k]))            
         return values
@@ -161,6 +165,8 @@ class KSPDeepEngine:
         self.step = 0
         self.reward = 0
         time.sleep(15)
+        self.lastCheckAlt = 89
+        self.lastAltitude = 89
         action.action = 1
         self.get_state(action)
         time.sleep(1.5)
@@ -187,14 +193,20 @@ class KSPDeepEngine:
         flightCtrlState = json.loads(message['flightCtrlState'])
         state = self.parseVessel(vessel)
         state.extend(self.parseFlightControls(flightCtrlState))
-                
-        if vessel['altitude'] - self.lastAltitude > 200:
+        self.reward = 0
+        
+        
+        
+        if vessel['altitude'] - self.lastCheckAlt > 10:
             self.reward += 1
-        else:
+            self.lastCheckAlt = vessel['altitude']
+            
+        if vessel['altitude'] - self.lastAltitude < 10:
             self.reward -= .1
+            self.lastCheckAlt = vessel['altitude']
         
         if message['action'] == 3 or int(vessel['altitude']) <= 70: # Action 3 means ship crashed
-            self.reward -= -1
+            self.reward -= 1
             done = True
             
         if vessel['situation'] == 5: # situation 5 means we reach a stable orbet
@@ -209,8 +221,7 @@ class KSPDeepEngine:
         self.lastAltitude = int(vessel['altitude'])
         
         currentTime = time.time()
-        if (currentTime - self.start) > 60:
-            self.reward -= 1
+        if (currentTime - self.start) > 10:
             done = True
                  
         return np.array(state, dtype='f'), self.reward, done, vessel, FlightCtrl(**flightCtrlState)

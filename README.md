@@ -3,8 +3,8 @@ This project provides a bridge into Kerbal Space Program so that you can control
 
 ## Objectives
 * Provide and share knowledge with everyone
-* Create and innovative new deep learning networks
-* Excite people to join and have fun
+* Create and innovate new deep learning networks
+* Excite people to learn and have fun
 
 
 ## Overview
@@ -12,7 +12,7 @@ This project is broken into several sections.
 
 * KSP Plugin - A plugin for KSP that will read and transmit game state to a python library.
 * Notebooks and Challenges - Challenges are a set of goals/objectives you want your network to achieve.
-* Agents - An agent is a provided network that can be used and modified.
+* Agents - An agent is a provided network that can be used to get started. As the project grows more agents will be added.
 
 ## Getting Started
 The first step is to clone this repo.
